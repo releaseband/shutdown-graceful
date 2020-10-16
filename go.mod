@@ -1,3 +1,3 @@
-module github.com/releaseband/shutdown
+module github.com/releaseband/shutdown-graceful
 
 go 1.15
