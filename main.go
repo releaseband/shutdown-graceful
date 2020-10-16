@@ -24,9 +24,12 @@ func ListenShutdownSignals(shutoff Shutoff, log errorLogging) <-chan struct{} {
 
 		s := <-sigint
 
+		signalType := s.String()
+
+		fmt.Println("shutdown signal type ", signalType)
 		if err := shutoff.Shutdown(); err != nil {
 			log(fmt.Errorf("signal_type: %s, shutdown failed: %w",
-				s.String(), err))
+				signalType, err))
 		}
 
 		close(idleConnsClosed)
