@@ -8,21 +8,22 @@ Examples
 Here is an example of using the package:
 
 ```go
-    package main
+    
+package main
 
-    import (
-	    "github.com/gofiber/fiber/v2"
-	    "go.uber.org/zap"
+import (
+	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
         "error"
-    )
+)
 
 func start(f *fiber.App) error {
 
-    logger := zap.L().Named("shutdown")
-    
-    logFunc := func(err error) {
-            logger.Error("shutdown failed", zap.Error(err))    
-   }
+	logger := zap.L().Named("shutdown")
+    	
+	logFunc := func(err error) {
+		logger.Error("shutdown failed", zap.Error(err))    
+	}
 
 	ch := ListenShutdownSignals(f, logFunc)
 
@@ -32,5 +33,5 @@ func start(f *fiber.App) error {
 
 	<-ch
     
-    return nil
+    	return nil
 }
