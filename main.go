@@ -9,12 +9,8 @@ import (
 	"time"
 )
 
-type Shutoff interface {
-	Shutdown(ctx context.Context) error
-}
-
 func ListenShutdownSignals(
-	shutoff Shutoff,
+	teardown func(ctx context.Context) error,
 	errChan chan<- error,
 	timeout time.Duration,
 ) <-chan struct{} {
@@ -30,7 +26,7 @@ func ListenShutdownSignals(
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		if err := shutoff.Shutdown(ctx); err != nil {
+		if err := teardown(ctx); err != nil {
 			errChan <- fmt.Errorf("signal_type: %s, shutdown failed: %w", s.String(), err)
 		}
 
