@@ -1,39 +1,41 @@
 package shutdown
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 type Shutoff interface {
-	Shutdown() error
+	Shutdown(ctx context.Context) error
 }
 
-type errorLogging = func(err error)
-
-func ListenShutdownSignals(shutoff Shutoff, log errorLogging) <-chan struct{} {
-	idleConnsClosed := make(chan struct{})
+func ListenShutdownSignals(
+	shutoff Shutoff,
+	errChan chan<- error,
+	timeout time.Duration,
+) <-chan struct{} {
+	idleClose := make(chan struct{})
 
 	go func() {
 		sigint := make(chan os.Signal, 1)
 
-		signal.Notify(sigint, os.Interrupt)
-		signal.Notify(sigint, syscall.SIGTERM)
+		signal.Notify(sigint, syscall.SIGTERM, syscall.SIGINT)
 
 		s := <-sigint
 
-		signalType := s.String()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 
-		fmt.Println("shutdown signal type ", signalType)
-		if err := shutoff.Shutdown(); err != nil {
-			log(fmt.Errorf("signal_type: %s, shutdown failed: %w",
-				signalType, err))
+		if err := shutoff.Shutdown(ctx); err != nil {
+			errChan <- fmt.Errorf("signal_type: %s, shutdown failed: %w", s.String(), err)
 		}
 
-		close(idleConnsClosed)
+		close(idleClose)
 	}()
 
-	return idleConnsClosed
+	return idleClose
 }
