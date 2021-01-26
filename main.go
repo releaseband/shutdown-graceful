@@ -2,7 +2,6 @@ package shutdown
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,8 +9,7 @@ import (
 )
 
 func ListenShutdownSignals(
-	teardown func(ctx context.Context) error,
-	errChan chan<- error,
+	teardown func(ctx context.Context),
 	timeout time.Duration,
 ) <-chan struct{} {
 	idleClose := make(chan struct{})
@@ -21,14 +19,11 @@ func ListenShutdownSignals(
 
 		signal.Notify(sigint, syscall.SIGTERM, syscall.SIGINT)
 
-		s := <-sigint
-
+		<-sigint
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		if err := teardown(ctx); err != nil {
-			errChan <- fmt.Errorf("signal_type: %s, shutdown failed: %w", s.String(), err)
-		}
+		teardown(ctx)
 
 		close(idleClose)
 	}()
