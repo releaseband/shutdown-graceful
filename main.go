@@ -45,8 +45,13 @@ type ReadinessChecker interface {
 	Shutdown()
 }
 
+type Server interface {
+	Shutdown(ctx context.Context) error
+}
+
 type Configs struct {
 	ReadinessChecker      ReadinessChecker
+	Server                Server
 	BeforeShutdownTimeout time.Duration
 	ShutdownTimeout       time.Duration
 	ErrorHandler          func(err error)
@@ -81,6 +86,14 @@ func ShutdownApp(cfg Configs) func(ctx context.Context) {
 
 					wg.Done()
 				}(wg, name, module)
+			}
+
+			wg.Wait()
+
+			if cfg.Server != nil {
+				if err := cfg.Server.Shutdown(ctx); err != nil {
+					cfg.ErrorHandler(fmt.Errorf("server: failed graceful shutdown: %w", err))
+				}
 			}
 		}
 	}
