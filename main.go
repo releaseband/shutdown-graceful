@@ -1,10 +1,13 @@
 package shutdown
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 )
 
 type Shutoff interface {
@@ -36,4 +39,49 @@ func ListenShutdownSignals(shutoff Shutoff, log errorLogging) <-chan struct{} {
 	}()
 
 	return idleConnsClosed
+}
+
+type ReadinessChecker interface {
+	Shutdown()
+}
+
+type Configs struct {
+	ReadinessChecker      ReadinessChecker
+	BeforeShutdownTimeout time.Duration
+	ShutdownTimeout       time.Duration
+	ErrorHandler          func(err error)
+	InformationHandler    func(mess string)
+	Modules               map[string]func(ctx context.Context) error
+}
+
+func ShutdownApp(cfg Configs) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		if cfg.ReadinessChecker != nil {
+			cfg.ReadinessChecker.Shutdown()
+		}
+
+		if cfg.InformationHandler != nil {
+			cfg.InformationHandler("waiting before start shutdown graceful: " + cfg.BeforeShutdownTimeout.String())
+		}
+
+		time.Sleep(cfg.BeforeShutdownTimeout)
+
+		count := len(cfg.Modules)
+		if count > 0 {
+			wg := &sync.WaitGroup{}
+			wg.Add(len(cfg.Modules))
+
+			for name, module := range cfg.Modules {
+				go func(wg *sync.WaitGroup, name string, shutdown func(ctx context.Context) error) {
+					if err := shutdown(ctx); err != nil {
+						if cfg.ErrorHandler != nil {
+							cfg.ErrorHandler(fmt.Errorf("module:%s, failed graceful shutdown: %w", name, err))
+						}
+					}
+
+					wg.Done()
+				}(wg, name, module)
+			}
+		}
+	}
 }
