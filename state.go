@@ -31,15 +31,18 @@ func (s State) iFinished() bool {
 	return s.notProcessed == 0
 }
 
-func (s *State) Shutdown(ctx context.Context) error {
+func (s *State) Shutdown(ctx context.Context) (uint64, error) {
+	var err error
+
 	if !s.iFinished() {
 		for {
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("shutdown context timeout done: %w", ctx.Err())
+				err = fmt.Errorf("shutdown context timeout done: %w", ctx.Err())
+				break
 			default:
 				if s.iFinished() {
-					return nil
+					break
 				}
 			}
 
@@ -47,5 +50,5 @@ func (s *State) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return s.notProcessed, err
 }
