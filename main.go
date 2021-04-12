@@ -7,13 +7,11 @@ import (
 	"syscall"
 )
 
-type Shutoff interface {
+type StartShutdownProcess interface {
 	Shutdown() error
 }
 
-type errorLogging = func(err error)
-
-func ListenShutdownSignals(shutoff Shutoff, log errorLogging) <-chan struct{} {
+func ListenShutdownSignals(shutdown StartShutdownProcess, errorHandler func(err error)) <-chan struct{} {
 	idleConnsClosed := make(chan struct{})
 
 	go func() {
@@ -27,8 +25,8 @@ func ListenShutdownSignals(shutoff Shutoff, log errorLogging) <-chan struct{} {
 		signalType := s.String()
 
 		fmt.Println("shutdown signal type ", signalType)
-		if err := shutoff.Shutdown(); err != nil {
-			log(fmt.Errorf("signal_type: %s, shutdown failed: %w",
+		if err := shutdown.Shutdown(); err != nil {
+			errorHandler(fmt.Errorf("signal_type: %s, shutdown failed: %w",
 				signalType, err))
 		}
 
