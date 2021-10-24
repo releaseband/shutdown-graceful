@@ -17,7 +17,7 @@ type StartShutdownProcess interface {
 	Shutdown() error
 }
 
-type ReadinessChecker interface {
+type TurnOffReadinessChecker interface {
 	Shutdown()
 }
 
@@ -30,22 +30,26 @@ type Logger interface {
 	Error(err error)
 }
 
-type gracefulShutdownApp struct {
-	Timeouts         Timeouts
-	ReadinessChecker ReadinessChecker
-	Logger           Logger
-	Modules          []Shutdown
-	Server           Shutdown
+type Application interface {
+	ListenShutdownSignals(shutdown StartShutdownProcess) <-chan struct{}
+	Shutdown() error
 }
 
-func NewGracefulShutdownApp(
-	timeouts Timeouts, checker ReadinessChecker, server Shutdown, modules []Shutdown, logger Logger) *gracefulShutdownApp {
-	return &gracefulShutdownApp{
-		Timeouts:         timeouts,
-		ReadinessChecker: checker,
-		Logger:           logger,
-		Modules:          modules,
-		Server:           server,
+type app struct {
+	timeouts         Timeouts
+	readinessChecker TurnOffReadinessChecker
+	logger           Logger
+	modules          []Shutdown
+	server           Shutdown
+}
+
+func NewApplication(timeouts Timeouts, checker TurnOffReadinessChecker, server Shutdown, modules []Shutdown, logger Logger) *app {
+	return &app{
+		timeouts:         timeouts,
+		readinessChecker: checker,
+		logger:           logger,
+		modules:          modules,
+		server:           server,
 	}
 }
 
@@ -88,39 +92,39 @@ func shutdown(timeout time.Duration, logger Logger, modules ...Shutdown) error {
 	return wait(ctx, ch)
 }
 
-func (g *gracefulShutdownApp) waitBeforeShutdown() {
-	t := g.Timeouts.GetBeforeTimeout()
+func (g *app) waitBeforeShutdown() {
+	t := g.timeouts.GetBeforeTimeout()
 
-	g.Logger.Info("waiting for the termination of running processes" + t.String())
+	g.logger.Info("waiting for the termination of running processes" + t.String())
 	time.Sleep(t)
 }
 
-func (g *gracefulShutdownApp) shutdownModules() {
-	t := g.Timeouts.GetModuleTimeout()
+func (g *app) shutdownModules() {
+	t := g.timeouts.GetModuleTimeout()
 
-	g.Logger.Info("timeout for shutdown modules = " + t.String())
+	g.logger.Info("timeout for shutdown modules = " + t.String())
 
-	if err := shutdown(t, g.Logger, g.Modules...); err != nil {
-		g.Logger.Error(fmt.Errorf("modules shutdown failed: %w", err))
+	if err := shutdown(t, g.logger, g.modules...); err != nil {
+		g.logger.Error(fmt.Errorf("modules shutdown failed: %w", err))
 	}
 }
 
-func (g *gracefulShutdownApp) shutdownServer() error {
-	t := g.Timeouts.GetServerTimeout()
+func (g *app) shutdownServer() error {
+	t := g.timeouts.GetServerTimeout()
 
-	g.Logger.Info("timeout for shutdown server = " + t.String())
+	g.logger.Info("timeout for shutdown server = " + t.String())
 
-	err := shutdown(t, g.Logger, g.Server)
+	err := shutdown(t, g.logger, g.server)
 	if err != nil {
-		g.Logger.Error(fmt.Errorf("server shutdown failed: %w", err))
+		g.logger.Error(fmt.Errorf("server shutdown failed: %w", err))
 	}
 
 	return err
 }
 
-func (g *gracefulShutdownApp) Shutdown() error {
-	if g.ReadinessChecker != nil {
-		g.ReadinessChecker.Shutdown()
+func (g *app) Shutdown() error {
+	if g.readinessChecker != nil {
+		g.readinessChecker.Shutdown()
 	}
 
 	g.waitBeforeShutdown()
@@ -129,7 +133,7 @@ func (g *gracefulShutdownApp) Shutdown() error {
 	return g.shutdownServer()
 }
 
-func (g gracefulShutdownApp) ListenShutdownSignals(shutdown StartShutdownProcess) <-chan struct{} {
+func (g *app) ListenShutdownSignals(shutdown StartShutdownProcess) <-chan struct{} {
 	idleConnsClosed := make(chan struct{}, 1)
 
 	go func() {
@@ -142,10 +146,10 @@ func (g gracefulShutdownApp) ListenShutdownSignals(shutdown StartShutdownProcess
 
 		signalType := "signal type: " + s.String()
 
-		g.Logger.Info(signalType)
+		g.logger.Info(signalType)
 
 		if err := shutdown.Shutdown(); err != nil {
-			g.Logger.Error(fmt.Errorf("signal type '%s': %w", signalType, err))
+			g.logger.Error(fmt.Errorf("signal type '%s': %w", signalType, err))
 		}
 
 		close(idleConnsClosed)

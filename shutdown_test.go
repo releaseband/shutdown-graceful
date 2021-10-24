@@ -103,11 +103,11 @@ func (tp testHelper) makeSuccessModule() *testModule {
 	return newTestModule(0, nil)
 }
 
-func (tp *testHelper) makeGSA(server Shutdown, modules ...Shutdown) *gracefulShutdownApp {
+func (tp *testHelper) makeGSA(server Shutdown, modules ...Shutdown) *app {
 	mList := make([]Shutdown, len(modules))
 	copy(mList, modules)
 
-	return NewGracefulShutdownApp(tp.makeTimeouts(), nil, server, mList, tp.logger)
+	return NewApplication(tp.makeTimeouts(), nil, server, mList, tp.logger)
 }
 
 func TestGracefulShutdownApp_Shutdown(t *testing.T) {
