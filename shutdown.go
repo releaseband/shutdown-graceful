@@ -13,10 +13,6 @@ import (
 
 var ErrTimedOut = errors.New("timed out")
 
-type StartShutdownProcess interface {
-	Shutdown() error
-}
-
 type TurnOffReadinessChecker interface {
 	Shutdown()
 }
@@ -31,8 +27,8 @@ type Logger interface {
 }
 
 type Application interface {
-	ListenShutdownSignals(shutdown StartShutdownProcess) <-chan struct{}
 	Shutdown() error
+	ListenShutdownSignals() <-chan struct{}
 }
 
 type app struct {
@@ -43,7 +39,8 @@ type app struct {
 	server           Shutdown
 }
 
-func NewApplication(timeouts Timeouts, checker TurnOffReadinessChecker, server Shutdown, modules []Shutdown, logger Logger) *app {
+func NewApplication(
+	timeouts Timeouts, checker TurnOffReadinessChecker, server Shutdown, modules []Shutdown, logger Logger) *app {
 	return &app{
 		timeouts:         timeouts,
 		readinessChecker: checker,
@@ -133,7 +130,7 @@ func (g *app) Shutdown() error {
 	return g.shutdownServer()
 }
 
-func (g *app) ListenShutdownSignals(shutdown StartShutdownProcess) <-chan struct{} {
+func (g *app) ListenShutdownSignals() <-chan struct{} {
 	idleConnsClosed := make(chan struct{}, 1)
 
 	go func() {
@@ -148,7 +145,7 @@ func (g *app) ListenShutdownSignals(shutdown StartShutdownProcess) <-chan struct
 
 		g.logger.Info(signalType)
 
-		if err := shutdown.Shutdown(); err != nil {
+		if err := g.Shutdown(); err != nil {
 			g.logger.Error(fmt.Errorf("signal type '%s': %w", signalType, err))
 		}
 
