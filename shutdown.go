@@ -92,14 +92,14 @@ func shutdown(timeout time.Duration, logger Logger, modules ...Shutdown) error {
 func (g *app) waitBeforeShutdown() {
 	t := g.timeouts.GetBeforeTimeout()
 
-	g.logger.Info("waiting for the termination of running processes" + t.String())
+	g.logger.Info("waiting for the termination of running processes " + t.String())
 	time.Sleep(t)
 }
 
 func (g *app) shutdownModules() {
 	t := g.timeouts.GetModuleTimeout()
 
-	g.logger.Info("start shutdown modules with timeout " + t.String())
+	g.logger.Info("graceful shutdown of modules started, timeout = " + t.String())
 
 	if err := shutdown(t, g.logger, g.modules...); err != nil {
 		g.logger.Error(fmt.Errorf("modules shutdown failed: %w", err))
@@ -109,7 +109,7 @@ func (g *app) shutdownModules() {
 func (g *app) shutdownServer() error {
 	t := g.timeouts.GetServerTimeout()
 
-	g.logger.Info("start shutdown server with timeout " + t.String())
+	g.logger.Info("graceful shutdown of server started, timeout = " + t.String())
 
 	err := shutdown(t, g.logger, g.server)
 	if err != nil {
