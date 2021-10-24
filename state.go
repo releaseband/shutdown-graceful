@@ -2,43 +2,43 @@ package shutdown
 
 import (
 	"context"
-	"fmt"
+	"sync/atomic"
 	"time"
 )
 
+const checkStateTimeout = 200 * time.Millisecond
+
 type State struct {
-	timeout      time.Duration
-	notProcessed uint64
+	notProcessed int64
 }
 
-func NewState(timeout time.Duration) *State {
-	return &State{
-		timeout: timeout,
-	}
+func NewState() *State {
+	return &State{}
 }
 
 func (s *State) Increment() {
-	s.notProcessed++
+	atomic.AddInt64(&s.notProcessed, +1)
+}
+
+func (s *State) get() int64 {
+	return atomic.LoadInt64(&s.notProcessed)
 }
 
 func (s *State) Decrement() {
-	if s.notProcessed > 0 {
-		s.notProcessed--
+	if s.get() > 0 {
+		atomic.AddInt64(&s.notProcessed, -1)
 	}
 }
 
 func (s State) iFinished() bool {
-	return s.notProcessed == 0
+	return s.get() == 0
 }
 
-func (s *State) Shutdown(ctx context.Context) (uint64, error) {
-	var err error
-
+func (s *State) Shutdown(ctx context.Context) int64 {
 	if !s.iFinished() {
 		for {
 			select {
 			case <-ctx.Done():
-				err = fmt.Errorf("shutdown context timeout done: %w", ctx.Err())
 				break
 			default:
 				if s.iFinished() {
@@ -46,9 +46,9 @@ func (s *State) Shutdown(ctx context.Context) (uint64, error) {
 				}
 			}
 
-			time.Sleep(s.timeout)
+			time.Sleep(checkStateTimeout)
 		}
 	}
 
-	return s.notProcessed, err
+	return s.get()
 }
