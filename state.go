@@ -34,15 +34,15 @@ func (s State) iFinished() bool {
 	return s.get() == 0
 }
 
-func (s *State) Shutdown(ctx context.Context) int64 {
+func (s *State) Shutdown(ctx context.Context) (int64, error) {
 	if !s.iFinished() {
 		for {
 			select {
 			case <-ctx.Done():
-				break
+				return s.get(), ErrTimedOut
 			default:
 				if s.iFinished() {
-					break
+					return 0, nil
 				}
 			}
 
@@ -50,5 +50,5 @@ func (s *State) Shutdown(ctx context.Context) int64 {
 		}
 	}
 
-	return s.get()
+	return 0, nil
 }
