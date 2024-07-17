@@ -1,3 +1,3 @@
-module github.com/releaseband/shutdown-graceful/v2
+module github.com/releaseband/shutdown-graceful/v3
 
-go 1.15
+go 1.22
